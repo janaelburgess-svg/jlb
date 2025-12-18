@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="description" content="Country Guessing Game" />
+        <meta name="author" content="Janae Burgess" />
+        <title>Game - Janae Burgess</title>
+        <link rel="icon" type="image/x-icon" href="assets/favicon.ico" />
+        <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+        <link href="https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic" rel="stylesheet" type="text/css" />
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800" rel="stylesheet" type="text/css" />
+        <link href="css/styles.css" rel="stylesheet" />
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+
+        <style>
+            :root {
+                --correct: #27ae60;
+                --neighbor: #f1c40f;
+                --continent: #e74c3c;
+                --wrong-gray: #bdc3c7; 
+            }
+            #game-row {
+                background: #fff;
+                border-radius: 15px;
+                overflow: hidden;
+                border: 1px solid #eee;
+                margin-bottom: 5rem;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            }
+            #sidebar {
+                background: #f8f9fa;
+                padding: 30px;
+                border-right: 1px solid #eee;
+            }
+            .stat-label { font-size: 0.7rem; text-transform: uppercase; color: #a4b0be; letter-spacing: 1px; }
+            .stat-value { font-size: 2rem; font-weight: 300; margin-bottom: 20px; }
+            #clue-box { background: #fff; padding: 20px; border-radius: 10px; border: 1px solid #eee; margin-top: 20px; }
+            
+            #map-wrapper { position: relative; height: 500px; background: #fdfdfd; cursor: crosshair; }
+            .country { fill: #edeff0; stroke: #fff; stroke-width: 0.5; transition: fill 0.2s; }
+            .country:hover { fill: #dee2e6; }
+            
+            .key { display: inline-block; padding: 2px 8px; border-radius: 3px; color: white; font-weight: bold; font-size: 0.7rem; margin: 2px; }
+            .k-green { background: var(--correct); }
+            .k-yellow { background: var(--neighbor); color: #000; }
+            .k-red { background: var(--continent); }
+            .k-gray { background: var(--wrong-gray); }
+
+            #toast {
+                position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+                padding: 12px 25px; background: rgba(51, 51, 51, 0.9); color: #fff; border-radius: 8px;
+                opacity: 0; transition: 0.3s; z-index: 1000; pointer-events: none;
+                min-width: 280px; max-width: 90%; text-align: center; font-weight: 600;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                line-height: 1.4;
+            }
+            #btn-next {
+                position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+                padding: 12px 30px; background: var(--correct); color: white; border: none;
+                border-radius: 50px; cursor: pointer; display: none; font-weight: 600;
+                box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+            }
+
+            .correct-pulse {
+                animation: pulse-green 1.5s infinite;
+            }
+            @keyframes pulse-green {
+                0% { fill: var(--correct); }
+                50% { fill: #2ecc71; }
+                100% { fill: var(--correct); }
+            }
+        </style>
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-light" id="mainNav">
+            <div class="container px-4 px-lg-5">
+                <a class="navbar-brand" href="index.html">Janae Burgess</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive">
+                    Menu <i class="fas fa-bars"></i>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarResponsive">
+                    <ul class="navbar-nav ms-auto py-4 py-lg-0">
+                        <li class="nav-item"><a class="nav-link px-lg-3 py-3 py-lg-4" href="index.html">Home</a></li>
+                        <li class="nav-item"><a class="nav-link px-lg-3 py-3 py-lg-4" href="experience.html">Resume</a></li>
+                        <li class="nav-item"><a class="nav-link px-lg-3 py-3 py-lg-4" href="travel.html">Travel</a></li>
+                        <li class="nav-item"><a class="nav-link px-lg-3 py-3 py-lg-4" href="game.html">Game</a></li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <header class="masthead" style="background-image: url('worldmap.png')">
+            <div class="container position-relative px-4 px-lg-5">
+                <div class="row gx-4 gx-lg-5 justify-content-center">
+                    <div class="col-md-10 col-lg-8 col-xl-7">
+                        <div class="site-heading">
+                            <h1>Global Guess</h1>
+                            <span class="subheading">Up your geography skills</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="container px-4 px-lg-5">
+            <div class="text-center mb-5">
+                <p class="text-muted">
+                    Read the clue and click the country on the map. <br>
+                    <span class="key k-green">Green</span> Correct | 
+                    <span class="key k-yellow">Yellow</span> Neighbor | 
+                    <span class="key k-red">Red</span> Same Continent |
+                    <span class="key k-gray">Gray</span> Incorrect
+                </p>
+            </div>
+
+            <div class="row" id="game-row">
+                <div class="col-md-4" id="sidebar">
+                    <div class="stat-label">Guesses This Round</div>
+                    <div id="guess-count" class="stat-value">0</div>
+
+                    <div id="clue-box">
+                        <div class="stat-label" style="color: var(--accent); margin-bottom: 10px;">The Hint</div>
+                        <div id="clue-text" class="small">Loading your first challenge...</div>
+                    </div>
+                </div>
+
+                <div class="col-md-8 p-0" id="main-map">
+                    <div id="map-wrapper">
+                        <div id="toast">Feedback</div>
+                        <div id="map-container" style="height: 100%; width: 100%;"></div>
+                        <button id="btn-next" onclick="initGame()">Next Country</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="border-top">
+            <div class="container px-4 px-lg-5">
+                <div class="row gx-4 gx-lg-5 justify-content-center">
+                    <div class="col-md-10 col-lg-8 col-xl-7">
+                        <ul class="list-inline text-center">
+                            <li class="list-inline-item">
+                                <a href="https://www.instagram.com/janaeburgess_/" target="_blank">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fas fa-circle fa-stack-2x"></i>
+                                        <i class="fab fa-instagram fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                            <li class="list-inline-item">
+                                <a href="https://www.linkedin.com/in/janae-b-537545257/" target="_blank">
+                                    <span class="fa-stack fa-lg">
+                                        <i class="fas fa-circle fa-stack-2x"></i>
+                                        <i class="fab fa-linkedin-in fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                </a>
+                            </li>
+                        </ul>
+                        <div class="small text-center text-muted fst-italic">Copyright &copy; Janae Burgess 2025</div>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+        
+        <script>
+            const countryData = [
+                { id: "840", name: "United States", continent: "North America", neighbors: ["124", "484"], clue: "Home to the Grand Canyon and the world's largest economy." },
+                { id: "124", name: "Canada", continent: "North America", neighbors: ["840"], clue: "The second largest country in the world, famous for its maple leaves." },
+                { id: "250", name: "France", continent: "Europe", neighbors: ["056", "276", "380", "442", "724", "756"], clue: "Famed for its gastronomy, fashion, and the Louvre museum." },
+                { id: "392", name: "Japan", continent: "Asia", neighbors: [], clue: "An island nation known for Shinto shrines and cutting-edge tech." },
+                { id: "076", name: "Brazil", continent: "South America", neighbors: ["032", "862", "170", "604", "068", "254", "328", "740", "858", "598"], clue: "The largest country in South America and home to the Amazon." },
+                { id: "710", name: "South Africa", continent: "Africa", neighbors: ["072", "454", "516", "566", "748"], clue: "Known as the Rainbow Nation, found at the continent's southern tip." },
+                { id: "356", name: "India", continent: "Asia", neighbors: ["050", "064", "156", "524", "586", "104"], clue: "Known for its vibrant festivals and the iconic Taj Mahal." },
+                { id: "036", name: "Australia", continent: "Oceania", neighbors: [], clue: "A massive island nation famous for the Outback and Great Barrier Reef." },
+                { id: "380", name: "Italy", continent: "Europe", neighbors: ["040", "250", "703", "756"], clue: "The heart of the Roman Empire, shaped like a distinctive boot." },
+                { id: "818", name: "Egypt", continent: "Africa", neighbors: ["729", "736", "434"], clue: "The land of the Pharaohs and the Nile River." },
+                { id: "032", name: "Argentina", continent: "South America", neighbors: ["076", "152", "604", "858", "598"], clue: "The birthplace of Tango and home to the high peaks of the Andes." },
+                { id: "276", name: "Germany", continent: "Europe", neighbors: ["040", "056", "203", "208", "250", "442", "528", "616", "756"], clue: "Famous for its engineering, Autobahn, and Octoberfest." },
+                { id: "484", name: "Mexico", continent: "North America", neighbors: ["840", "084", "320"], clue: "Famous for its ancient Mayan and Aztec ruins, and its world-renowned cuisine." },
+                { id: "643", name: "Russia", continent: "Europe", neighbors: ["156", "246", "398", "410", "804", "616", "578", "752", "112", "440", "233", "268", "031", "408"], clue: "The largest country in the world by area, spanning eleven time zones." },
+                { id: "724", name: "Spain", continent: "Europe", neighbors: ["250", "620", "504"], clue: "Famed for Flamenco dancing, bullfighting, and the architecture of Antoni Gaudí." },
+                { id: "826", name: "United Kingdom", continent: "Europe", neighbors: ["372"], clue: "Composed of four nations, known for its royal family and global influence." }
+            ];
+
+            // Master continent lookup to ensure Red works even for countries not in countryData
+            const continentLookup = {
+                "Africa": ["012", "024", "072", "120", "140", "148", "175", "180", "204", "226", "231", "232", "262", "266", "270", "288", "324", "384", "404", "426", "430", "434", "450", "454", "466", "478", "480", "504", "508", "516", "562", "566", "646", "686", "690", "694", "706", "710", "716", "728", "729", "732", "736", "748", "768", "788", "800", "818", "834", "854", "894"],
+                "Europe": ["008", "040", "056", "100", "112", "191", "203", "208", "233", "246", "250", "276", "300", "348", "352", "372", "380", "428", "440", "442", "470", "498", "499", "528", "578", "616", "620", "642", "643", "674", "688", "703", "705", "724", "752", "756", "804", "826"],
+                "Asia": ["004", "031", "050", "051", "064", "096", "104", "116", "156", "158", "268", "356", "360", "364", "368", "376", "392", "398", "400", "408", "410", "414", "417", "418", "422", "458", "462", "496", "512", "524", "586", "608", "634", "682", "702", "704", "760", "762", "764", "784", "792", "795", "860", "887"],
+                "North America": ["084", "124", "188", "192", "214", "222", "304", "308", "312", "320", "332", "484", "558", "591", "840"],
+                "South America": ["032", "068", "076", "152", "170", "218", "254", "328", "600", "604", "858", "862"],
+                "Oceania": ["036", "242", "548", "554", "583", "598", "882"]
+            };
+
+            let countryDeck = [...countryData];
+            let targetCountry = null;
+            let guessCount = 0;
+
+            function playSuccessSound() {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.5); // A5
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            }
+
+            function shuffle(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+
+            shuffle(countryDeck);
+
+            const svg = d3.select("#map-container").append("svg").attr("viewBox", "0 0 960 500").attr("width", "100%").attr("height", "100%");
+            const g = svg.append("g");
+            const zoom = d3.zoom().scaleExtent([1, 10]).on("zoom", (event) => g.attr("transform", event.transform));
+            svg.call(zoom);
+
+            const projection = d3.geoNaturalEarth1().scale(160).translate([480, 250]);
+            const path = d3.geoPath().projection(projection);
+
+            d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(data => {
+                const world = topojson.feature(data, data.objects.countries);
+                g.selectAll(".country").data(world.features).enter().append("path")
+                    .attr("class", "country")
+                    .attr("d", path)
+                    .on("click", (event, d) => handleGuess(d, event.currentTarget));
+                initGame();
+            });
+
+            function initGame() {
+                if (countryDeck.length === 0) {
+                    countryDeck = [...countryData];
+                    shuffle(countryDeck);
+                }
+                targetCountry = countryDeck.pop();
+                guessCount = 0;
+                document.getElementById("guess-count").innerText = "0";
+                document.getElementById("clue-text").innerText = targetCountry.clue;
+                document.getElementById("btn-next").style.display = "none";
+                g.selectAll(".country").style("fill", "#edeff0").attr("class", "country");
+                svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+            }
+
+            function showToast(text, color = "#333") {
+                const toast = document.getElementById("toast");
+                toast.innerText = text; toast.style.background = color; toast.style.opacity = "1";
+                setTimeout(() => toast.style.opacity = "0", 3000);
+            }
+
+            function handleGuess(geoData, element) {
+                if (document.getElementById("btn-next").style.display === "block") return;
+
+                guessCount++;
+                document.getElementById("guess-count").innerText = guessCount;
+                
+                const clickedName = geoData.properties.name || "Unknown Territory";
+                const clickedId = geoData.id.toString().padStart(3, '0');
+
+                // Determine clicked continent
+                let clickedContinent = "Unknown";
+                for (let continent in continentLookup) {
+                    if (continentLookup[continent].includes(clickedId)) {
+                        clickedContinent = continent;
+                        break;
+                    }
+                }
+
+                // 1. CORRECT GUESS
+                if (clickedId === targetCountry.id) {
+                    d3.select(element).attr("class", "country correct-pulse");
+                    playSuccessSound();
+                    showToast(`That's ${clickedName}! Correct!`, "var(--correct)");
+                    document.getElementById("btn-next").style.display = "block";
+                } 
+                // 2. NEIGHBOR GUESS
+                else if (targetCountry.neighbors.includes(clickedId)) {
+                    d3.select(element).style("fill", "var(--neighbor)");
+                    showToast(`That's ${clickedName}! It borders the target.`, "var(--neighbor)");
+                } 
+                // 3. SAME CONTINENT
+                else if (clickedContinent === targetCountry.continent) {
+                    d3.select(element).style("fill", "var(--continent)");
+                    showToast(`That's ${clickedName}! Right continent, wrong country.`, "var(--continent)");
+                } 
+                // 4. TOTALLY INCORRECT
+                else {
+                    d3.select(element).style("fill", "var(--wrong-gray)");
+                    showToast(`That's ${clickedName}! Try again.`, "#333");
+                }
+            }
+        </script>
+    </body>
+</html>
